@@ -19,7 +19,8 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,   // وضعنا فاصلة هنا
+        GatewayIntentBits.GuildModeration // أضفنا هذا السطر الجديد للحماية
     ]
 });
 
@@ -760,6 +761,35 @@ client.on('interactionCreate', async interaction => {
         if (cId === 'ch_2') { await interaction.editReply({ content: '🔵 تم تسجيل اختيارك: تفضل القصر الفخم والدراما اليومية مع الأشباح! 👻', embeds: [], components: [] }).catch(() => {}); loopGamesMenu(channel); }
     }
 });
+client.on('ready', async () => {
+    console.log(`🤖 ${client.user.tag} جاهز أونلاين!`);
 
+    // استبدل الأرقام المكتوبة تحت بـ آيدي السيرفر حقك الحقيقي
+    const guild = client.guilds.cache.get('123456789012345678'); 
+    if (!guild) return;
+
+    try {
+        // إنشاء قاعدة AutoMod لمنع الكلمات السيئة
+        await guild.autoModerationRules.create({
+            name: 'نظام منع الكلمات السيئة تلقائياً',
+            eventType: 1, 
+            triggerType: 1, 
+            triggerMetadata: {
+                keywordFilter: ['كلب', 'حمار'] // ضع هنا الكلمات اللي تبي البوت يحظرها تلقائياً
+            },
+            actions: [
+                {
+                    type: 1, 
+                    metadata: {
+                        customMessage: 'عذراً، هذه الكلمة ممنوعة في السيرفر!' 
+                    }
+                }
+            ]
+        });
+        console.log('✅ تم تفعيل نظام الـ AutoMod في سيرفرك بنجاح!');
+    } catch (error) {
+        console.log('نظام AutoMod مفعّل مسبقاً أو هناك نقص في الصلاحيات.');
+    }
+});
 // ضع التوكن الخاص بالبوت هنا لتشغيله في سيرفرك
 client.login(process.env.DISCORD_TOKEN);
