@@ -765,7 +765,7 @@ client.on('ready', async () => {
     console.log(`🤖 ${client.user.tag} جاهز أونلاين!`);
 
     // استبدل الأرقام المكتوبة تحت بـ آيدي السيرفر حقك الحقيقي
-    const guild = client.guilds.cache.get('123456789012345678'); 
+    const guild = client.guilds.cache.get('1417850204689793117'); 
     if (!guild) return;
 
     try {
