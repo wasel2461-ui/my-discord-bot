@@ -303,7 +303,7 @@ client.on('interactionCreate', async interaction => {
         else if (game === 'game_flags') {
             const flagPool = [{q:'🇸🇦', a:'السعودية'}, {q:'🇪🇬', a:'مصر'}, {q:'🇵🇸', a:'فلسطين'}, {q:'🇯🇵', a:'اليابان'}];
             const picked = flagPool[Math.floor(Math.random() * flagPool.length)];
-            await channel.send لمن هذا العلم الملوكي الظاهر أمامك: **[ ${picked.q} ]**؟`);
+            await channel.send(` لمن هذا العلم الملوكي الظاهر أمامك: **[ ${picked.q} ]**؟`);
             createTextGameCollector(m => m.content.trim().includes(picked.a), picked.a, 30, userId);
         }
         // 3. ألعاب و ألغاز
