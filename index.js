@@ -25,30 +25,162 @@ const client = new Client({
         GatewayIntentBits.GuildModeration 
     ]
 });
-// --- إعداد نظام اللوق الأسطوري لحفظ السجلات وإرسالها للروم الحين ---const logFilePath = path.join(__dirname, 'server_logs.txt');
-const logFilePath = path.join(__dirname, 'server_logs.txt');
+
+// --- إعداد نظام اللوق الأسطوري لحفظ السجلات في ملف النصي ---// --- إعداد نظام اللوق الأسطوري لحفظ السجلات وإرسالها للروم الحين ---const logFilePath = path.join(__dirname, 'server_logs.txt');
 const LOG_CHANNEL_ID = '1498622885982507138';
 
 function writeToLog(content) {
     const timestamp = new Date().toLocaleString('ar-EG', { timeZone: 'Asia/Riyadh' });
     const logMessage = `[${timestamp}] ${content}\n`;
-    
     fs.appendFile(logFilePath, logMessage, (err) => {
-        if (err) console.error('Log file write error:', err);
+        if (err) console.error('Log file error:', err);
     });
-
-    client.channels.fetch(LOG_CHANNEL_ID)
-        .then(logChannel => {
-            if (logChannel) {
-                logChannel.send(`\`\`\`diff\n+ ${logMessage}\`\`\``).catch(err => {
-                    console.error('Discord send error:', err.message);
-                });
-            }
-        })
-        .catch(err => {
-            
-        });
 }
+
+async function sendLogEmbed(embed) {
+    try {
+        const channel = await client.channels.fetch(LOG_CHANNEL_ID);
+        if (channel) channel.send({ embeds: [embed] });
+    } catch (err) {
+        console.error('Error sending embed:', err);
+    }
+}
+
+client.on('messageDelete', message => {
+    if (message.partial || message.author?.bot) return;
+    writeToLog(`Message deleted by ${message.author.tag} in #${message.channel.name}`);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#FF0000')
+        .setTitle('🗑️ رسالة محذوفة')
+        .addFields(
+            { name: 'القناة:', value: `<#${message.channel.id}>`, inline: true },
+            { name: 'صاحب الرسالة:', value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
+            { name: 'المحتوى المحذوف:', value: message.content || 'لا يوجد نص' }
+        )
+        .setFooter({ text: `ID: ${message.author.id}` })
+        .setTimestamp();
+    sendLogEmbed(embed);
+});
+
+client.on('messageUpdate', (oldMessage, newMessage) => {
+    if (oldMessage.partial || oldMessage.author?.bot || oldMessage.content === newMessage.content) return;
+    writeToLog(`Message edited by ${oldMessage.author.tag} in #${oldMessage.channel.name}`);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#FFA500')
+        .setTitle('📝 تعديل رسالة')
+        .addFields(
+            { name: 'القناة:', value: `<#${oldMessage.channel.id}>`, inline: true },
+            { name: 'صاحب الرسالة:', value: `<@${oldMessage.author.id}>`, inline: true },
+            { name: 'قبل التعديل:', value: oldMessage.content || 'لا يوجد' },
+            { name: 'بعد التعديل:', value: newMessage.content || 'لا يوجد' }
+        )
+        .setFooter({ text: `ID: ${oldMessage.author.id}` })
+        .setTimestamp();
+    sendLogEmbed(embed);
+});
+
+client.on('guildMemberAdd', member => {
+    writeToLog(`Member joined: ${member.user.tag}`);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('📥 عضو جديد دخل السيرفر')
+        .setDescription(`أهلاً بك <@${member.id}> في السيرفر!`)
+        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+        .setFooter({ text: `ID: ${member.id}` })
+        .setTimestamp();
+    sendLogEmbed(embed);
+});
+
+client.on('guildMemberRemove', member => {
+    writeToLog(`Member left: ${member.user.tag}`);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#FF0000')
+        .setTitle('📤 عضو غادر السيرفر')
+        .setDescription(`غادرنا <@${member.id}> (${member.user.tag})`)
+        .setFooter({ text: `ID: ${member.id}` })
+        .setTimestamp();
+    sendLogEmbed(embed);
+});
+
+client.on('guildBanAdd', ban => {
+    writeToLog(`Member banned: ${ban.user.tag}`);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#8B0000')
+        .setTitle('🔨 تم تبنيد عضو')
+        .addFields(
+            { name: 'العضو المتبند:', value: `<@${ban.user.id}> (${ban.user.tag})` },
+            { name: 'السبب:', value: ban.reason || 'لم يذكر سبب' }
+        )
+        .setFooter({ text: `ID: ${ban.user.id}` })
+        .setTimestamp();
+    sendLogEmbed(embed);
+});
+
+client.on('channelCreate', channel => {
+    writeToLog(`Channel created: ${channel.name}`);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#00FFFF')
+        .setTitle('🆕 إنشاء روم جديدة')
+        .addFields(
+            { name: 'اسم الروم:', value: `${channel.name}`, inline: true },
+            { name: 'نوعها:', value: `${channel.type}`, inline: true },
+            { name: 'المنشن:', value: `<#${channel.id}>`, inline: true }
+        )
+        .setTimestamp();
+    sendLogEmbed(embed);
+});
+
+client.on('voiceStateUpdate', (oldState, newState) => {
+    if (!oldState.channelId && newState.channelId) {
+        writeToLog(`${newState.member.user.tag} joined voice channel`);
+        const embed = new EmbedBuilder()
+            .setColor('#1E90FF')
+            .setTitle('🔊 دخول الفويس شات')
+            .setDescription(`<@${newState.member.id}> دخل الروم الصوتي <#${newState.channelId}>`)
+            .setTimestamp();
+        sendLogEmbed(embed);
+    } else if (oldState.channelId && !newState.channelId) {
+        writeToLog(`${oldState.member.user.tag} left voice channel`);
+        const embed = new EmbedBuilder()
+            .setColor('#6A5ACD')
+            .setTitle('🔇 خروج من الفويس شات')
+            .setDescription(`<@${oldState.member.id}> خرج من الروم الصوتي <#${oldState.channelId}>`)
+            .setTimestamp();
+        sendLogEmbed(embed);
+    }
+});
+
+client.on('guildMemberUpdate', (oldMember, newMember) => {
+    const oldRoles = oldMember.roles.cache;
+    const newRoles = newMember.roles.cache;
+    
+    if (oldRoles.size < newRoles.size) {
+        const addedRole = newRoles.filter(role => !oldRoles.has(role.id)).first();
+        writeToLog(`Role ${addedRole.name} given to ${newMember.user.tag}`);
+        const embed = new EmbedBuilder()
+            .setColor('#7FFF00')
+            .setTitle('👑 إعطاء رول لعضو')
+            .setDescription(`تم إعطاء رول <@&${addedRole.id}> للعضو <@${newMember.id}>`)
+            .setTimestamp();
+        sendLogEmbed(embed);
+    } else if (oldRoles.size > newRoles.size) {
+        const removedRole = oldRoles.filter(role => !newRoles.has(role.id)).first();
+        writeToLog(`Role ${removedRole.name} taken from ${newMember.user.tag}`);
+        const embed = new EmbedBuilder()
+            .setColor('#DC143C')
+            .setTitle('❌ سحب رول من عضو')
+            .setDescription(`تم سحب رول <@&${removedRole.id}> من العضو <@${newMember.id}>`)
+            .setTimestamp();
+        sendLogEmbed(embed);
+    }
+});
+
 // قاعدة بيانات وهمية في الذاكرة للألعاب والنقاط
 const db = {
     points: {},        // نقاط المستخدمين
