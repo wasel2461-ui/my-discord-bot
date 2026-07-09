@@ -25,27 +25,22 @@ const client = new Client({
         GatewayIntentBits.GuildModeration 
     ]
 });
-
-// --- إعداد نظام اللوق الأسطوري لحفظ السجلات في ملف النصي ---// --- إعداد نظام اللوق الأسطوري لحفظ السجلات وإرسالها للروم الحين ---
-const logFilePath = path.join(__dirname, 'server_logs.txt');
-const LOG_CHANNEL_ID = 'ضع_هنا_آيدي_روم_اللوق'; // 👈 استبدل هذا النص بآيدي الروم الحقيقي حق اللوق
+// --- إعداد نظام اللوق الأسطوري لحفظ السجلات وإرسالها للروم الحين ---const logFilePath = path.join(__dirname, 'server_logs.txt');
+const LOG_CHANNEL_ID = '1498622885982507138';
 
 function writeToLog(content) {
     const timestamp = new Date().toLocaleString('ar-EG', { timeZone: 'Asia/Riyadh' });
     const logMessage = `[${timestamp}] ${content}\n`;
     
-    // 1. يحفظ في الملف النصي كالمعتاد
     fs.appendFile(logFilePath, logMessage, (err) => {
-        if (err) console.error('❌ حدث خطأ أثناء الكتابة في ملف اللوق:', err);
+        if (err) console.error('Log file write error:', err);
     });
 
-    // 2. يرسل اللوق مباشرة إلى الروم المحددة في سيرفرك
     const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
     if (logChannel) {
         logChannel.send(`\`\`\`diff\n+ ${logMessage}\`\`\``).catch(() => {});
     }
 }
-
 // قاعدة بيانات وهمية في الذاكرة للألعاب والنقاط
 const db = {
     points: {},        // نقاط المستخدمين
