@@ -27,7 +27,7 @@ const client = new Client({
 });
 
 // --- إعداد نظام اللوق الأسطوري لحفظ السجلات في ملف النصي ---// --- إعداد نظام اللوق الأسطوري لحفظ السجلات وإرسالها للروم الحين ---const logFilePath = path.join(__dirname, 'server_logs.txt');
-const LOG_CHANNEL_ID = '1498622885982507138';
+const LOG_CHANNEL_ID = '1498622890642374737';
 
 function writeToLog(content) {
     const timestamp = new Date().toLocaleString('ar-EG', { timeZone: 'Asia/Riyadh' });
