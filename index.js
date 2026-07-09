@@ -1,5 +1,7 @@
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType, PermissionFlagsBits } = require('discord.js');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
 // --- إعداد سيرفر الويب (Express) لإبقاء البوت حياً 24 ساعة ---
 const app = express();
@@ -13,18 +15,38 @@ app.listen(PORT, () => {
     console.log(`🌐 سيرفر الويب جاهز ومستمع على المنفذ: ${PORT}`);
 });
 
-// --- إعداد بوت ديسكورد ---
+// --- إعداد بوت ديسكورد مع كافة الـ Intents المطلوبة ---
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,   // وضعنا فاصلة هنا
-        GatewayIntentBits.GuildModeration // أضفنا هذا السطر الجديد للحماية
+        GatewayIntentBits.GuildMembers,   
+        GatewayIntentBits.GuildModeration 
     ]
 });
 
-// قاعدة بيانات وهمية في الذاكرة
+// --- إعداد نظام اللوق الأسطوري لحفظ السجلات في ملف النصي ---// --- إعداد نظام اللوق الأسطوري لحفظ السجلات وإرسالها للروم الحين ---
+const logFilePath = path.join(__dirname, 'server_logs.txt');
+const LOG_CHANNEL_ID = 'ضع_هنا_آيدي_روم_اللوق'; // 👈 استبدل هذا النص بآيدي الروم الحقيقي حق اللوق
+
+function writeToLog(content) {
+    const timestamp = new Date().toLocaleString('ar-EG', { timeZone: 'Asia/Riyadh' });
+    const logMessage = `[${timestamp}] ${content}\n`;
+    
+    // 1. يحفظ في الملف النصي كالمعتاد
+    fs.appendFile(logFilePath, logMessage, (err) => {
+        if (err) console.error('❌ حدث خطأ أثناء الكتابة في ملف اللوق:', err);
+    });
+
+    // 2. يرسل اللوق مباشرة إلى الروم المحددة في سيرفرك
+    const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
+    if (logChannel) {
+        logChannel.send(`\`\`\`diff\n+ ${logMessage}\`\`\``).catch(() => {});
+    }
+}
+
+// قاعدة بيانات وهمية في الذاكرة للألعاب والنقاط
 const db = {
     points: {},        // نقاط المستخدمين
     shield_kill: {},   // درع حماية الروليت
@@ -32,7 +54,7 @@ const db = {
     roulette_x3: {}    // مضاعف تريبل
 };
 
-// بيانات الألعاب والفعاليات الـ 33
+// بيانات الألعاب والفعاليات الـ 33 كاملة
 const GAMES_DATA = {
     game_capitals: { title: 'عواصم الدول', emoji: '🌍' },
     game_flags: { title: 'أعلام الدول', emoji: '🏳️‍🌈' },
@@ -116,9 +138,11 @@ async function loopGamesMenu(channel) {
     }, 4000); 
 }
 
-// تشغيل البوت وتسجيل أوامر السلاش تلقائياً
+// تشغيل البوت وتجهيز الأوامر و الـ AutoMod معاً في حدث جاهزية البوت
 client.once('ready', async () => {
     console.log(`✅ تم تشغيل البوت بنجاح باسم: ${client.user.tag}`);
+    console.log(`🤖 ${client.user.tag} جاهز أونلاين ونظام اللوق الأسطوري يعمل بنشاط!`);
+
     try {
         await client.application.commands.set([
             { name: 'العاب', description: 'فتح منصة الألعاب والفعاليات الملوكية المفتوحة لجمع النقاط' },
@@ -128,8 +152,35 @@ client.once('ready', async () => {
     } catch (error) {
         console.error('❌ حدث خطأ أثناء تسجيل أوامر السلاش:', error);
     }
+
+    // إعداد قاعدة AutoMod التلقائية لحماية الشات من الكلمات الممنوعة
+    const guild = client.guilds.cache.get('1299026478503170180'); // استبدله بآيدي سيرفرك
+    if (!guild) return;
+
+    try {
+        await guild.autoModerationRules.create({
+            name: 'نظام منع الكلمات السيئة تلقائياً',
+            eventType: 1, 
+            triggerType: 1, 
+            triggerMetadata: {
+                keywordFilter: ['كلب', 'حمار'] 
+            },
+            actions: [
+                {
+                    type: 1, 
+                    metadata: {
+                        customMessage: 'عذراً، هذه الكلمة ممنوعة في السيرفر!' 
+                    }
+                }
+            ]
+        });
+        console.log('✅ تم تفعيل نظام الـ AutoMod في سيرفرك بنجاح!');
+    } catch (error) {
+        console.log('نظام AutoMod مفعّل مسبقاً أو هناك نقص في الصلاحيات.');
+    }
 });
 
+// --- معالجة التفاعلات والأوامر والألعاب ---
 client.on('interactionCreate', async interaction => {
     const channel = interaction.channel;
     const userId = interaction.user.id;
@@ -265,6 +316,7 @@ client.on('interactionCreate', async interaction => {
                                 finished = true;
                                 await btnInt.reply({ content: `🛑 تم إلغاء الجولة بواسطة ${btnInt.user}.` }).catch(() => {});
                                 textCollector.stop('cancelled'); buttonCollector.stop('cancelled');
+                                btnInt.message.delete().catch(() => {});
                             }
                         });
 
@@ -274,7 +326,7 @@ client.on('interactionCreate', async interaction => {
                                 finished = true;
                                 textCollector.stop('correct'); buttonCollector.stop('correct');
                                 addPoints(m.author.id, 50);
-                                await channel.send(`🎉 **كفوووو يا bطل!** الإجابة الصحيحة هي بالفعل: **[ ${correctAnswerString} ]**، فزت بـ \`+50\` نقطة! صاحب الإجابة: ${m.author}`);
+                                await channel.send(`🎉 **كفوووو يا بطل!** الإجابة الصحيحة هي بالفعل: **[ ${correctAnswerString} ]**، فزت بـ \`+50\` نقطة! صاحب الإجابة: ${m.author}`);
                             }
                         });
 
@@ -290,7 +342,7 @@ client.on('interactionCreate', async interaction => {
                 }).catch(() => {});
         }
 
-        // --- تشغيل الـ 33 لعبة مع التعديلات الكبرى للألعاب الجماعية ---
+        // --- تشغيل الـ 33 لعبة النصية والجماعية بالكامل التام ---
 
         // 1. عواصم الدول
         if (game === 'game_capitals') {
@@ -359,7 +411,7 @@ client.on('interactionCreate', async interaction => {
         }
         // 13. صح أم خطأ
         else if (game === 'game_true_false') {
-            await channel.send('✅ **تحدي صح أم خطأ السريع:** هل يعتبر الخفاش من فصيلة الطيور؟ (اكتب: صح أو خطأ)');
+            await channel.send('✅ **تحدي صح أم خطأ السريع:** هل يعتبر الخفاش من فصيلة الطيور? (اكتب: صح أو خطأ)');
             createTextGameCollector(m => m.content.trim() === 'خطأ' || m.content.trim() === 'خطا', 'خطأ (هو من الثدييات)', 25, userId);
         }
         // 14. اختبار ذكاء سريع
@@ -429,7 +481,7 @@ client.on('interactionCreate', async interaction => {
             createTextGameCollector(m => m.content.trim() === picked.a, picked.a, 30, userId);
         }
 
-        // 25. 🎡 لعبة روليت عجلة الموت الجماعية المطور (تعديل كامل مثل نمط المقطع)
+        // 25. 🎡 لعبة روليت عجلة الموت الجماعية المطور 
         else if (game === 'game_roulette') {
             const rEndTimestamp = Math.floor((Date.now() + 25000) / 1000);
             const rouletteEmbed = new EmbedBuilder()
@@ -463,7 +515,6 @@ client.on('interactionCreate', async interaction => {
             rCollector.on('end', async (collected, reason) => {
                 if (reason === 'stopped') { if (rMsg) rMsg.delete().catch(() => {}); loopGamesMenu(channel); return; }
                 
-                // التحقق من شرط الـ 4 لاعبين كحد أدنى
                 if (roulettePlayers.size < 4) {
                     await channel.send('❌ **تم إلغاء جولة الروليت!** العدد غير كافٍ، الألعاب الجماعية تتطلب تواجد **4 أشخاص على الأقل** للبدء والمنافسة.');
                     if (rMsg) rMsg.delete().catch(() => {});
@@ -471,7 +522,6 @@ client.on('interactionCreate', async interaction => {
                 }
                 await rMsg.delete().catch(() => {});
 
-                // مرحلة اختيار الأرقام والـ Slots السرية (مثل نمط المقطع الشهير)
                 const numEmbed = new EmbedBuilder()
                     .setColor('#E74C3C')
                     .setTitle('🎯 مرحلة حجز أرقام روليت الموت العشوائي')
@@ -500,10 +550,8 @@ client.on('interactionCreate', async interaction => {
 
                 numCollector.on('end', async () => {
                     await numMsg.delete().catch(() => {});
-                    // توزيع عشوائي لمن لم يختر رقم
                     playersArr.forEach(id => { if (!playerNumbers[id]) playerNumbers[id] = Math.floor(Math.random() * 6) + 1; });
 
-                    // أنميشن دوران العجلة الملوكية
                     const spinMsg = await channel.send('🔄 **عجلة الموت تدور الآن... انتظروا الصدمة!** ⏳');
                     const delay = (ms) => new Promise(res => setTimeout(res, ms));
                     await delay(1000); await spinMsg.edit('🔄 **العجلة تتجاوز الرقم [ 2 ] ومقاعد اللاعبين...** ⚡');
@@ -542,7 +590,7 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-        // 26. 🪑 لعبة كراسي الاختباء الجماعية الكبرى (تعديل كامل وجديد بالكامل حسب طلبك)
+        // 26. 🪑 لعبة كراسي الاختباء الجماعية الكبرى
         else if (game === 'game_chairs') {
             const cEndTimestamp = Math.floor((Date.now() + 25000) / 1000);
             const chairEmbed = new EmbedBuilder()
@@ -576,7 +624,6 @@ client.on('interactionCreate', async interaction => {
             cCollector.on('end', async (collected, reason) => {
                 if (reason === 'stopped') { if (cMsg) cMsg.delete().catch(() => {}); loopGamesMenu(channel); return; }
                 
-                // شرط الـ 4 لاعبين كحد أدنى للكراسي
                 if (chairsPlayers.size < 4) {
                     await channel.send('❌ **تم إلغاء لعبة الكراسي!** العدد غير كافٍ، يجب تواجد **4 أشخاص على الأقل** لبدء تحدي الكراسي التفاعلي الحين.');
                     if (cMsg) cMsg.delete().catch(() => {});
@@ -584,7 +631,6 @@ client.on('interactionCreate', async interaction => {
                 }
                 await cMsg.delete().catch(() => {});
 
-                // مرحلة اختباء جميع اللاعبين سرياً (بدون عجلة، نفس ستايل الروليت)
                 const hideEmbed = new EmbedBuilder()
                     .setColor('#E67E22')
                     .setTitle('🤫 مرحلة الاختباء خلف الكراسي الملوكية')
@@ -613,16 +659,14 @@ client.on('interactionCreate', async interaction => {
 
                 hideCollector.on('end', async () => {
                     await hideMsg.delete().catch(() => {});
-                    // توزيع عشوائي لمن لم يختر كرسي
                     playersList.forEach(id => { if (!playerChairs[id]) playerChairs[id] = Math.floor(Math.random() * 6) + 1; });
 
-                    // اختيار شخص عشوائي من الجولة في البداية ليكون هو الباحث (Seeker)
                     const seekerId = playersList[Math.floor(Math.random() * playersList.length)];
 
                     const seekerEmbed = new EmbedBuilder()
                         .setColor('#F39C12')
                         .setTitle('👑 اختيار الباحث العشوائي الملوكي')
-                        .setDescription(`وقع الاختيار العشوائي الحين على اللاعب: <@${seekerId}>\n\nيا <@${seekerId}>، أمامك 20 ثانية لاختيار رقم كرسي لتفتيشه واستهدافه؛ وإذا فيه أحد متخبي وراك يطلع برا اللعبة فوراً!`);
+                        .setDescription(`قع الاختيار العشوائي الحين على اللاعب: <@${seekerId}>\n\nيا <@${seekerId}>، أمامك 20 ثانية لاختيار رقم كرسي لتفتيشه واستهدافه؛ وإذا فيه أحد متخبي وراك يطلع برا اللعبة فوراً!`);
 
                     const actRow1 = new ActionRowBuilder().addComponents(
                         new ButtonBuilder().setCustomId('seek_1').setLabel('💥 فتش كرسي 1').setStyle(ButtonStyle.Danger),
@@ -652,12 +696,11 @@ client.on('interactionCreate', async interaction => {
 
                         let eliminatedPlayers = []; let savedPlayers = [];
                         playersList.forEach(id => {
-                            if (id === seekerId) return; // الباحث لا يطرد نفسه
+                            if (id === seekerId) return; 
                             if (playerChairs[id] === chosenChairBySeeker) { eliminatedPlayers.push(`<@${id}>`); } 
                             else { addPoints(id, 60); savedPlayers.push(`<@${id}> (كرسي ${playerChairs[id]})`); }
                         });
 
-                        // توزيع مكافأة للباحث حسب كشفه للأعضاء
                         if (eliminatedPlayers.length > 0) { addPoints(seekerId, 80); } else { addPoints(seekerId, 20); }
 
                         const elimText = eliminatedPlayers.length > 0 ? eliminatedPlayers.join(', ') : 'لا أحد! كان الكرسي فارغاً تماماً والكل نجا بذكاء الحين!';
@@ -761,35 +804,36 @@ client.on('interactionCreate', async interaction => {
         if (cId === 'ch_2') { await interaction.editReply({ content: '🔵 تم تسجيل اختيارك: تفضل القصر الفخم والدراما اليومية مع الأشباح! 👻', embeds: [], components: [] }).catch(() => {}); loopGamesMenu(channel); }
     }
 });
-client.on('ready', async () => {
-    console.log(`🤖 ${client.user.tag} جاهز أونلاين!`);
 
-    // استبدل الأرقام المكتوبة تحت بـ آيدي السيرفر حقك الحقيقي
-    const guild = client.guilds.cache.get('1417850204689793117'); 
-    if (!guild) return;
+// --- أحداث اللوق الأسطوري لحماية ورصد تحركات السيرفر ولن يستطيع أحد حذفه ---
 
-    try {
-        // إنشاء قاعدة AutoMod لمنع الكلمات السيئة
-        await guild.autoModerationRules.create({
-            name: 'نظام منع الكلمات السيئة تلقائياً',
-            eventType: 1, 
-            triggerType: 1, 
-            triggerMetadata: {
-                keywordFilter: ['كلب', 'حمار'] // ضع هنا الكلمات اللي تبي البوت يحظرها تلقائياً
-            },
-            actions: [
-                {
-                    type: 1, 
-                    metadata: {
-                        customMessage: 'عذراً، هذه الكلمة ممنوعة في السيرفر!' 
-                    }
-                }
-            ]
-        });
-        console.log('✅ تم تفعيل نظام الـ AutoMod في سيرفرك بنجاح!');
-    } catch (error) {
-        console.log('نظام AutoMod مفعّل مسبقاً أو هناك نقص في الصلاحيات.');
-    }
+// 1. عند حذف أي رسالة
+client.on('messageDelete', message => {
+    if (message.author?.bot || !message.guild) return;
+    writeToLog(`🗑️ رسالة محذوفة في روم [ #${message.channel.name} ] بواسطة العضو [ ${message.author.tag} ]: "${message.content || 'محتوى فارغ أو ملف/إمبيد'}"`);
 });
-// ضع التوكن الخاص بالبوت هنا لتشغيله في سيرفرك
+
+// 2. عند تعديل أي رسالة
+client.on('messageUpdate', (oldMessage, newMessage) => {
+    if (oldMessage.author?.bot || !oldMessage.guild) return;
+    if (oldMessage.content === newMessage.content) return; // للتأكد أن التعديل في النص
+    writeToLog(`📝 رسالة معدلة في روم [ #${oldMessage.channel.name} ] بواسطة [ ${oldMessage.author.tag} ]:\n ◀️ المحتوى القديم: "${oldMessage.content}"\n ▶️ المحتوى الجديد: "${newMessage.content}"`);
+});
+
+// 3. عند دخول عضو جديد للسيرفر
+client.on('guildMemberAdd', member => {
+    writeToLog(`📥 عضو جديد انضم للسيرفر الحين: [ ${member.user.tag} ] (آيدي: ${member.id})`);
+});
+
+// 4. عند مغادرة أو طرد عضو من السيرفر
+client.on('guildMemberRemove', member => {
+    writeToLog(`📤 عضو غادر السيرفر أو تم طرده الحين: [ ${member.user.tag} ] (آيدي: ${member.id})`);
+});
+
+// 5. عند حظر (تبنيد) عضو من السيرفر
+client.on('guildBanAdd', ban => {
+    writeToLog(`🔨 تم تبنيد عضو من السيرفر: [ ${ban.user.tag} ] | السبب: ${ban.reason || 'بدون سبب محدد'}`);
+});
+
+// تسجيل دخول البوت بالتوكن الملوكي الخاص بك
 client.login(process.env.DISCORD_TOKEN);
