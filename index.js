@@ -26,6 +26,7 @@ const client = new Client({
     ]
 });
 // --- إعداد نظام اللوق الأسطوري لحفظ السجلات وإرسالها للروم الحين ---const logFilePath = path.join(__dirname, 'server_logs.txt');
+const logFilePath = path.join(__dirname, 'server_logs.txt');
 const LOG_CHANNEL_ID = '1498622885982507138';
 
 function writeToLog(content) {
@@ -36,10 +37,17 @@ function writeToLog(content) {
         if (err) console.error('Log file write error:', err);
     });
 
-    const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
-    if (logChannel) {
-        logChannel.send(`\`\`\`diff\n+ ${logMessage}\`\`\``).catch(() => {});
-    }
+    client.channels.fetch(LOG_CHANNEL_ID)
+        .then(logChannel => {
+            if (logChannel) {
+                logChannel.send(`\`\`\`diff\n+ ${logMessage}\`\`\``).catch(err => {
+                    console.error('Discord send error:', err.message);
+                });
+            }
+        })
+        .catch(err => {
+            
+        });
 }
 // قاعدة بيانات وهمية في الذاكرة للألعاب والنقاط
 const db = {
